@@ -1,0 +1,8 @@
+*				text=auto
+*.sln			-text
+*.vcxproj		-text
+*.filters		-text
+*.props			-text
+*.psess			-text
+*.natvis		-text
+

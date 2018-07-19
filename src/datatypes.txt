@@ -1,0 +1,243 @@
+data type 
+	= variable{ name :: string }
+	| atype{ name :: string, args :: [type] }
+	.
+
+data dconstr = dconstr{ name :: string, args :: [type] }.
+
+data index_descriptor 
+    = array_map{ arg :: i32, cost :: i32, descr :: index_descriptor }
+    | hash_map{ args :: [i32], cost :: i32, descr :: index_descriptor }
+    | boolean
+	| value
+    | value_list{ cost :: i32 }
+    | hash_set{ cost :: i32 }
+    | bitmap{ cost :: i32 }
+	| replace
+	| join{ function :: string }
+    | source{ name :: string, cost :: i32 }
+    | sink{ name :: string }
+	.
+
+data data_decl = data_decl{
+	name :: string,
+	tyvars :: [string],
+	dconstrs :: [dconstr] }.
+	
+data function_decl = function_decl{
+	loc :: location,
+	name :: string,
+	result_type :: type,
+	arg_types :: [type] }.
+		
+data proper_type = proper_type{ name :: string, args :: [proper_type] }.
+	
+data proper_dconstr = proper_dconstr{ 
+	type :: proper_type, 
+	name :: string, 
+	args :: [proper_type] }.
+	
+data predicate_decl = predicate_decl{
+	loc :: location,
+	name :: string,
+	types :: [type],
+	direct :: i32,
+	variadic :: i32,
+	builtin :: i32 }.
+	
+data index_decl = index_decl{
+	loc :: location,
+	name :: string,
+	bp :: [binding],
+	descr :: index_descriptor,
+	category :: i32 }.
+	
+data typed_predicate = typed_predicate{
+	decl :: predicate_decl,
+	types :: [proper_type] }.
+	
+data binding = bound | free.
+
+data adorned_predicate = adorned_predicate{ 
+	name :: string, 
+	bp :: [binding] }.
+data adorned_typed_predicate = adorned_typed_predicate{ 
+	pred :: typed_predicate, 
+	bp :: [binding] }.
+
+data location = location{
+	file_name :: string,
+	first_line :: i32,
+	first_column :: i32,
+	last_line :: i32,
+	last_column :: i32 }.
+
+data term
+	= i32{ loc :: location, value :: i32 }
+	| string{ loc :: location, value :: string }
+	| variable{ loc :: location, name :: string, explicit_type :: proper_type }
+	| anonymous{ loc :: location }
+	| compound{ 
+		loc :: location, 
+		name :: string, 
+		explicit_type :: proper_type,
+		inner :: [term] }
+	| conditional{
+		loc :: location,
+		cond :: term,
+		true_block :: term,
+		false_block :: term }
+	| aggregate{
+		loc :: location,
+		input :: [term],
+		output :: term,
+		lits :: [literal] }.
+
+data literal = literal{ 
+	loc :: location, 
+	apred :: adorned_predicate,
+	args :: [term],
+	negated :: i32 }.
+		
+data function_defn = function_defn{
+	loc :: location,
+	decl :: function_decl,
+	args :: [term],
+	body :: term }.
+
+data typed_term
+	= i32{ loc :: location, value :: i32 }
+	| string{ loc :: location, value :: string }
+	| variable{ loc :: location, name :: string, type :: proper_type }
+	| anonymous{ loc :: location }
+	| compound{ loc :: location, dconstr :: proper_dconstr, inner :: [typed_term] }
+	| function{ loc :: location, func :: typed_function, inner :: [typed_term] }
+	| conditional{
+		loc :: location,
+		type :: proper_type,
+		cond :: typed_term,
+		true_block :: typed_term,
+		false_block :: typed_term }
+	| aggregate{
+		loc :: location,
+		type :: proper_type,
+		apred :: adorned_typed_predicate,
+		input :: [typed_term],
+		output :: typed_term,
+		lits :: [typed_literal] }
+	.
+
+data typed_function = typed_function{
+	decl :: function_decl,
+	result_type :: proper_type,
+	arg_types :: [proper_type] }.
+
+data typed_literal = typed_literal{
+	loc :: location, 
+	apred :: adorned_typed_predicate, 
+	args :: [typed_term],
+    negated :: i32 }.
+data typed_dconstr = typed_dconstr{ name :: string, dconstr :: string }.
+
+data interned_string = interned_string{ value :: string }.
+
+data builtin_pred
+    = edb | equals | not_zero.
+    
+data index_node
+    = root
+    | single_map{
+        parent :: index_node,
+        type :: proper_type }
+    | multi_map{
+        parent :: index_node,
+        types :: [proper_type],
+        apred :: adorned_typed_predicate }
+    | leaf{
+        parent :: index_node,
+        apred :: adorned_typed_predicate,
+        decl :: index_decl }
+    | term_set{ 
+        pdconstr :: proper_dconstr }
+    | worklist{
+        apred :: adorned_typed_predicate }.
+                
+data index_structure = index_structure{
+    node :: index_node,
+    children :: [index_node] }.
+
+data index_info
+	= array_map{ 
+		arg :: i32, 
+		cost :: i32, 
+		offset :: i32, 
+		structure :: index_structure, 
+		descr :: index_info }
+	| hash_map{ 
+		args :: [i32], 
+		cost :: i32, 
+		offset :: i32, 
+		structure :: index_structure, 
+		descr :: index_info }
+	| boolean{
+		offset :: i32 }
+	| value{
+		args :: [i32], 
+		offset :: i32 }
+	| value_list{
+		args :: [i32], 
+		cost :: i32,
+		offset :: i32 }
+	| hash_set{
+		args :: [i32], 
+		cost :: i32,
+		offset :: i32 }
+	| bitmap{
+		arg :: i32,
+		cost :: i32,
+		offset :: i32 }
+	| replace{
+		args :: [i32],
+		offset :: i32 }
+	| join{
+		arg :: i32,
+		function :: typed_function,
+		offset :: i32 }
+	| worklist{
+		offset :: i32 }
+	| direct
+    | source{
+		file_name :: string,
+		cost :: i32,
+		types :: [i32] }
+	| sink{
+		file_descriptor :: i32 }
+	| aggregate
+	| builtin{ op :: builtin_pred }
+	.
+
+data predicate_index = predicate_index{ 
+	apred :: adorned_typed_predicate, 
+	idx_info :: index_info, 
+	category :: i32 }.
+	
+data nliteral
+	= i32{ value :: i32 }
+	| string{ value :: string }
+	.
+
+data nterm 
+	= lit{ loc :: location, value :: nliteral }
+	| var{ loc :: location, name :: string }
+	| app{ loc :: location, lhs :: nterm, rhs :: nterm }
+	| abs{ loc :: location, var :: string, exp :: nterm }
+	| let{ loc :: location, name :: string, value :: nterm, exp :: nterm }
+	.
+
+data mtype
+	= app{ name :: string, args :: [mtype] }
+	| var{ name :: string }
+	| fun{ from :: mtype, to :: mtype }
+	.
+
+data ptype = ptype{ vars :: [string], type :: mtype }.

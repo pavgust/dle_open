@@ -1,0 +1,333 @@
+predicate dynamic_class(type,invoke).
+index dynamic_class hash_map([1],10,hash_set(1)).
+dynamic_class(type("antlr.CppCodeGenerator"),invoke("antlr.Tool.doEverything/java.lang.Class.forName/0")).
+dynamic_class(type("aantlr.JavaCodeGenerator"),invoke("antlr.Tool.doEverything/java.lang.Class.forName/0")).
+dynamic_class(type("aantlr.CSharpCodeGenerator"),invoke("antlr.Tool.doEverything/java.lang.Class.forName/0")).
+dynamic_class(type("org.hsqldb.jdbcDriver"),invoke("dacapo.hsqldb.PseudoJDBCBench.main/java.lang.Class.forName/0")).
+
+/******************************************************************************
+ * Reified Method
+ *****************************************************************************/
+predicate reified_method(method_sig,heap).
+index reified_method array_map(0,50000000,value()).
+index reified_method array_map(1,50000000,value()) secondary.
+
+reified_method(Sig,Heap) :-
+    method_signature(Sig,Type,Simple,Descr),
+    (Simple != "<init>"), (Simple != "<clinit>"),
+    ( Sig = method_sig(SigStr) ),
+    ( Heap = heap(SigStr,type("java.lang.reflect.Method"),type("java.lang.reflect.Method"),reified()) ).
+
+/******************************************************************************
+ * Reified Fields
+ *****************************************************************************/
+predicate reified_field(field_sig,heap).
+index reified_field array_map(0,50000000,value()).
+index reified_field array_map(1,50000000,value()) secondary.
+
+reified_field(Sig,Heap) :-
+    field_signature(Sig,Class,Name,Type),
+    ( Sig = field_sig(SigStr) ),
+    ( Heap = heap(SigStr,type("java.lang.reflect.Field"),type("java.lang.reflect.Field"),reified()) ).
+
+/******************************************************************************
+ * Reified Constructor
+ *****************************************************************************/
+predicate reified_constructor(method_sig,heap).
+index reified_constructor array_map(0,50000000,value()).
+index reified_constructor array_map(1,50000000,value()) secondary.
+
+reified_constructor(Sig,Heap) :-
+    method_signature(Sig,Type,"<init>",Descr),
+    ( Sig = method_sig(SigStr) ),
+    ( Heap = heap(SigStr,type("java.lang.reflect.Constructor"),type("java.lang.reflect.Constructor"),reified()) ).
+
+
+/******************************************************************************
+ * Object.getClass
+ *****************************************************************************/
+predicate get_class(variable,variable,method).
+index get_class array_map(1,50000000,hash_set(10)).
+
+// To = Base.getClass()
+get_class(To,Base,InMethod) :- 
+    virtual_invoke(Invoke,Base,method_sig("<java.lang.Object: java.lang.Class getClass()>"),InMethod),
+    assign_return(Invoke,To).
+
+pts(To,heap(Class,type("java.lang.Class"),type("java.lang.Class"),class(T)),A) :- 
+    get_class(To,Base,P),
+    pts(Base,H,B),
+	( T = get_type(H) ),
+    reified_class(T,Class),
+    record_from_ci#bf(B,A).
+
+/******************************************************************************
+ * Class.forName
+ *****************************************************************************/
+predicate for_name(invoke,method).
+index for_name hash_map([1],100,hash_set(2)).
+index for_name hash_map([0],100,value_list(2)) secondary.
+for_name(I,P) :-
+    method_declaration(method_sig("<java.lang.Class: java.lang.Class forName(java.lang.String)>"),T),
+    static_invoke(I,T,P).
+for_name(I,P) :-
+    method_declaration(method_sig("<java.lang.Class: java.lang.Class forName(java.lang.String,boolean,java.lang.ClassLoader)>"),T),
+    static_invoke(I,T,P).
+
+pts(X,heap(Class,type("java.lang.Class"),type("java.lang.Class"),class(T)),A) :-
+    for_name(Inv,P),
+    dynamic_class(T,Inv),
+    assign_return(Inv,X),
+    reified_class(T,Class),
+    record_ci#bf(P,A).
+initialized(T) :-
+    for_name(Inv,P),
+    reachable_ci(P),
+    dynamic_class(T,Inv).
+
+pts(X,heap(Class,type("java.lang.Class"),type("java.lang.Class"),class(T)),A) :-
+    for_name(Inv,P),
+    reachable_ci(P),
+    actual_param(Inv,0,Param),
+    pts(Param,Constant,B),
+    class_name_string_constant(Constant,T),
+    reified_class(T,Class),
+    assign_return(Inv,X),
+    record_from_ci#bf(B,A).
+initialized(T) :-
+    for_name(Inv,P),
+    reachable_ci(P),
+    actual_param(Inv,0,Param),
+    pts(Param,Constant,B),
+    class_name_string_constant(Constant,T).
+
+/******************************************************************************
+ * Class.getDeclaredMethods
+ *****************************************************************************/
+predicate get_declared_method(variable,variable).
+index get_declared_method array_map(1,50000000,hash_set(2)).
+
+get_declared_method(Ret,Base) :-
+    virtual_invoke(Inv,Base,method_sig("<java.lang.Class: java.lang.reflect.Method getDeclaredMethod(java.lang.String,java.lang.Class[])>"),P),
+    assign_return(Inv,Ret).
+
+pts(X,H,A) :-
+    get_declared_method(X,Base),
+    pts(Base,heap(_,_,_,class(Type)),B),
+    method_signature(Sig,Type,_,_),
+    reified_method(Sig,H),
+    record_from#bf(B,A).
+
+/******************************************************************************
+ * Class.getConstructors
+ *****************************************************************************/
+predicate get_constructor(variable,variable).
+index get_constructor array_map(1,50000000,hash_set(2)).
+
+predicate get_declared_constructor(variable,variable).
+index get_declared_constructor array_map(1,50000000,hash_set(2)).
+
+get_constructor(Ret,Base) :-
+    virtual_invoke(Inv,Base,method_sig("<java.lang.Class: java.lang.reflect.Constructor getConstructor(java.lang.Class[])>"),P),
+    assign_return(Inv,Ret).
+
+get_declared_constructor(Ret,Base) :-
+    virtual_invoke(Inv,Base,method_sig("<java.lang.Class: java.lang.reflect.Constructor getDeclaredConstructor(java.lang.Class[])>"),P),
+    assign_return(Inv,Ret).
+
+pts(X,H,A) :-
+    get_constructor(X,Base),
+    pts(Base,heap(_,_,_,class(Type)),B),
+    method_signature(Sig,Type,_,_),
+    method_modifier("public",Sig),
+    reified_constructor(Sig,H),
+    record_from#bf(B,A).
+
+pts(X,H,A) :-
+    get_declared_constructor(X,Base),
+    pts(Base,heap(_,_,_,class(Type)),B),
+    method_signature(Sig,Type,_,_),
+    reified_constructor(Sig,H),
+    record_from#bf(B,A).
+
+/******************************************************************************
+ * Method.invoke
+ *****************************************************************************/
+predicate reflective_virtual_invoke(invoke,variable,method_sig,method).
+index reflective_virtual_invoke array_map(1,50000000,hash_set(3)).
+index reflective_virtual_invoke array_map(0,50000000,value_list(3)) secondary.
+
+reflective_invoke(Invoke) :-
+    virtual_invoke(Invoke,From,method_sig("<java.lang.reflect.Method: java.lang.Object invoke(java.lang.Object,java.lang.Object[])>"),InMethod).
+
+hloada(W,Y,A) :- 
+    pts(Z,W,B), 
+    actual_param(I,1,Z), reflective_virtual_invoke(I,_,_,_),
+    call(I,P,C), 
+    formal_param(P,O,Y),
+    variable(Y,_,Ty), component_type(get_type(W),TwComp),
+    castable(TwComp,Ty),    
+    compose_m#bbf(B,C,A).
+
+// TODO: not context sensitive
+reflective_virtual_invoke(Invoke,Base,Sig,InMethod) :-
+    virtual_invoke(Invoke,From,method_sig("<java.lang.reflect.Method: java.lang.Object invoke(java.lang.Object,java.lang.Object[])>"),InMethod),
+    pts(From,Method,B),
+    reified_method(Sig,Method),
+    actual_param(Invoke,0,Base).
+
+pts(Y,X,A), call(I,Q,C) :-
+    pts(Z,X,B), 
+    reflective_virtual_invoke(I,Z,S,P),
+    method_signature(S,Ts,Simple,Descr), method_lookup(get_type(X),Simple,Descr,Q), 
+    this_variable(Q,Y),
+    variable(Y,_,Ty), castable(get_type(X),Ty),
+    merge#bbbf(X,I,B,C), compose_m#bbf(B,C,A).
+
+/******************************************************************************
+ * Reflective Special Invoke
+ *****************************************************************************/
+predicate reflective_special_invoke(invoke,variable,method,method).
+index reflective_special_invoke array_map(1,50000000,hash_set(2)).
+index reflective_special_invoke array_map(0,50000000,value_list(3)) secondary.
+
+pts(Y,X,A), call(I,Q,C) :- 
+    pts(Z,X,B), 
+    reflective_special_invoke(I,Z,Q,P),
+    this_variable(Q,Y),
+    variable(Y,_,Ty), castable(get_type(X),Ty),
+    merge#bbbf(X,I,B,C), compose_m#bbf(B,C,A).
+
+hloada(W,Y,A) :- 
+    pts(Z,W,B), 
+    actual_param(I,0,Z), reflective_special_invoke(I,_,_,_),
+    call(I,P,C), 
+    formal_param(P,O,Y),
+    variable(Y,_,Ty), component_type(get_type(W),TwComp),
+    castable(TwComp,Ty),    
+    compose_m#bbf(B,C,A).
+
+/******************************************************************************
+ * Constructor.newInstance
+ *****************************************************************************/
+reflective_invoke(Invoke) :-
+    virtual_invoke(Invoke,Base,method_sig("<java.lang.reflect.Constructor: java.lang.Object newInstance(java.lang.Object[])>"),InMethod).
+
+pts(Y,X,A), initialized(Type), reflective_special_invoke(Invoke,Y,Method,InMethod) :-
+    virtual_invoke(Invoke,Base,method_sig("<java.lang.reflect.Constructor: java.lang.Object newInstance(java.lang.Object[])>"),InMethod),
+    assign_return(Invoke,Y),
+    pts(Base,Constructor,B),
+    reified_constructor(Sig,Constructor),
+    method_signature(Sig,Type,Simple,Descr),
+    method_declaring_class(InMethod,DType),
+    (X = heap("<newInstance>",Type,DType,new_instance(Invoke,Type))),
+    method_declaration(Sig,Method),
+    record_from#bf(B,A).
+
+/******************************************************************************
+ * Class.newInstance
+ *****************************************************************************/
+predicate class_to_constructor(type,method).
+index class_to_constructor hash_map([0],50000000,value()).
+class_to_constructor(Type,Method) :-
+    method_signature(Sig,Type,"<init>","void()"),
+    method_declaration(Sig,Method).
+
+reflective_invoke(Invoke) :-
+    virtual_invoke(Invoke,Base,method_sig("<java.lang.Class: java.lang.Object newInstance()>"),InMethod).
+
+pts(Y,X,A), initialized(Type), reflective_special_invoke(Invoke,Y,Method,InMethod) :-
+    virtual_invoke(Invoke,Base,method_sig("<java.lang.Class: java.lang.Object newInstance()>"),InMethod),
+    assign_return(Invoke,Y),
+    pts(Base,heap(_,_,_,class(Type)),B),
+    class_to_constructor(Type,Method),
+    method_declaring_class(InMethod,DType),
+    (X = heap("<newInstance>",Type,DType,new_instance(Invoke,Type))),
+    record_from#bf(B,A).
+
+/******************************************************************************
+ * Class.getFields
+ *****************************************************************************/
+predicate get_declared_field(variable,variable).
+index get_declared_field array_map(1,50000000,hash_set(2)).
+
+get_declared_field(Ret,Base) :-
+    virtual_invoke(Inv,Base,method_sig("<java.lang.Class: java.lang.reflect.Field getDeclaredField(java.lang.String)>"),P),
+    assign_return(Inv,Ret).
+
+pts(X,H,A) :-
+    get_declared_field(X,Base),
+    pts(Base,heap(_,_,_,class(Type)),B),
+    field_signature(Sig,Type,_,_),
+    reified_field(Sig,H),
+    record_from#bf(B,A).
+
+/******************************************************************************
+ * Field.get
+ *****************************************************************************/
+predicate field_get(invoke,variable,variable,variable).
+index field_get array_map(2,50000000,hash_set(2)).
+index field_get array_map(3,50000000,value_list(2)) secondary.
+
+field_get(Inv,Ret,Field,Base) :-
+    virtual_invoke(Inv,Field,method_sig("<java.lang.reflect.Field: java.lang.Object get(java.lang.Object)>"),P),
+    assign_return(Inv,Ret),
+    actual_param(Inv,0,Base).
+
+hload(X,Y,F,A) :-
+    field_get(Inv,Y,Field,Base),
+    pts(Field,Heap,B),
+    reified_field(F,Heap),
+    pts(Base,X,A).
+
+// predicate field_get_static(invoke,variable,variable).
+// index field_get_static array_map(2,50000000,hash_set(2)).
+
+// field_get_static(Inv,Ret,Field) :-
+//     virtual_invoke(Inv,Field,method_sig("<java.lang.reflect.Field: java.lang.Object get(java.lang.Object)>"),P),
+//     assign_return(Inv,Ret).
+
+// pts(Y,X,A) :- 
+//     hptss(X,F,B),
+//     field_get_static(Inv,Y,Field),
+//     pts(Field,Heap,C),
+//     reified_field(F,Heap),
+//     field_modifier("static",F),
+//     compose_w#bbf(P,B,A).
+
+/******************************************************************************
+ * Field.set
+ *****************************************************************************/
+predicate field_set(invoke,variable,variable,variable).
+index field_set array_map(1,50000000,hash_set(2)).
+index field_set array_map(2,50000000,value_list(2)) secondary.
+index field_set array_map(3,50000000,value_list(2)) secondary.
+
+field_set(Inv,From,Field,Base) :-
+    virtual_invoke(Inv,Field,method_sig("<java.lang.reflect.Field: void set(java.lang.Object,java.lang.Object)>"),P),
+    actual_param(Inv,0,Base),
+    actual_param(Inv,1,From).
+
+hpts(Y,X,F,A) :-
+    pts(From,X,B), 
+    field_set(Inv,From,Field,Base),
+    pts(Base,Y,C),
+    pts(Field,Heap,D),
+    reified_field(F,Heap),    
+    compose_r#bbf(B,C,A).
+
+
+// predicate field_get_static(invoke,variable,variable).
+// index field_get_static array_map(2,50000000,hash_set(2)).
+
+// field_get_static(Inv,Ret,Field) :-
+//     virtual_invoke(Inv,Field,method_sig("<java.lang.reflect.Field: void set(java.lang.Object,java.lang.Object)>"),P),
+//     assign_return(Inv,Ret).
+
+// pts(Y,X,A) :- 
+//     hptss(X,F,B),
+//     field_get_static(Inv,Y,Field),
+//     pts(Field,Heap,C),
+//     reified_field(F,Heap),
+//     field_modifier("static",F),
+//     compose_w#bbf(P,B,A).

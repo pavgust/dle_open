@@ -1,0 +1,599 @@
+include( "show.dl" ).
+include( "prelude.dl" ).
+
+data type = type string.
+data method = method string.
+data method_sig = method_sig string.
+data field_sig = field_sig string.
+
+predicate direct_super_class(type,type).
+index direct_super_class array_map(0, 50000000, value()).
+index direct_super_class array_map(1, 50000000, value_list(10)) secondary.
+predicate direct_super_interface(type,type).
+index direct_super_interface array_map(0, 50000000, hash_set(2)).
+index direct_super_interface array_map(1, 50000000, value_list(10)) secondary.
+
+predicate interface_type(type).
+index interface_type array_map(0,50000000,boolean()).
+predicate class_type(type).
+index class_type array_map(0,50000000,boolean()).
+predicate array_type(type).
+index array_type array_map(0,50000000,boolean()).
+predicate primitive_type(type).
+index primitive_type array_map(0,50000000,boolean()).
+predicate application_class(type).
+index application_class array_map(0,50000000,boolean()).
+predicate component_type(type,type).
+index component_type array_map(0, 50000000, value()).
+index component_type array_map(1, 50000000, value_list(100)) secondary.
+
+predicate method_signature_type(method_sig,type).
+index method_signature_type array_map(0, 50000000, value()).
+predicate method_signature_simple(method_sig,string).
+index method_signature_simple array_map(0, 50000000, value()).
+predicate method_signature_descriptor(method_sig,string).
+index method_signature_descriptor array_map(0, 50000000, value()).
+predicate method_declaration(method_sig,method).
+index method_declaration array_map(0, 50000000, value()).
+predicate method_modifier(string,method_sig).
+index method_modifier array_map(1, 50000000, hash_set(2)).
+
+predicate field_signature(field_sig,type,string,type).
+index field_signature array_map(0, 50000000, value()).
+predicate field_modifier(string,field_sig).
+index field_modifier array_map(1, 50000000, hash_set(2)).
+
+direct_super_class(Sub,type("java.lang.Object")) :-
+    array_type(Sub).
+    
+predicate method_signature(method_sig,type,string,string).
+index method_signature array_map(0, 50000000, value()).
+index method_signature array_map(1, 50000000, value_list(12)) secondary.
+method_signature(Sig,Type,Simple,Descr) :-
+    method_signature_type(Sig,Type),
+    method_signature_simple(Sig,Simple),
+    method_signature_descriptor(Sig,Descr).
+
+// **************************************************************************** 
+predicate ext_direct_super_class(string,string).
+index ext_direct_super_class source("DirectSuperclass.facts", 2).
+direct_super_class(type(X),type(Y)) :- ext_direct_super_class(X,Y).
+predicate ext_direct_super_interface(string,string).
+index ext_direct_super_interface source("DirectSuperinterface.facts", 2).
+direct_super_interface(type(X),type(Y)) :- ext_direct_super_interface(X,Y).
+
+predicate ext_method_signature_type(string,string).
+index ext_method_signature_type source("MethodSignature-Type.facts", 2).
+method_signature_type(method_sig(X),type(Y)) :- ext_method_signature_type(X,Y).
+predicate ext_method_signature_simple(string,string).
+index ext_method_signature_simple source("MethodSignature-SimpleName.facts", 2).
+method_signature_simple(method_sig(X),Y) :- ext_method_signature_simple(X,Y).
+predicate ext_method_signature_descriptor(string,string).
+index ext_method_signature_descriptor source("MethodSignature-Descriptor.facts", 2).
+method_signature_descriptor(method_sig(X),Y) :- ext_method_signature_descriptor(X,Y).
+predicate ext_method_declaration(string,string).
+index ext_method_declaration source("MethodDeclaration.facts", 2).
+method_declaration(method_sig(X),method(Y)) :- ext_method_declaration(X,Y).
+predicate ext_method_modifier(string,string).
+index ext_method_modifier source("MethodModifier.facts", 2).
+method_modifier(X,method_sig(Y)) :- ext_method_modifier(X,Y).
+
+predicate ext_field_signature(string,string,string,string).
+index ext_field_signature source("FieldSignature.facts", 4).
+field_signature(field_sig(W),type(X),Y,type(Z)) :- ext_field_signature(W,X,Y,Z).
+predicate ext_field_modifier(string,string).
+index ext_field_modifier source("FieldModifier.facts", 2).
+field_modifier(X,field_sig(Y)) :- ext_field_modifier(X,Y).
+
+predicate ext_interface_type(string).
+index ext_interface_type source("InterfaceType.facts", 1).
+interface_type(type(X)) :- ext_interface_type(X).
+predicate ext_class_type(string).
+index ext_class_type source("ClassType.facts", 1).
+class_type(type(X)) :- ext_class_type(X).
+predicate ext_array_type(string).
+index ext_array_type source("ArrayType.facts", 1).
+array_type(type(X)) :- ext_array_type(X).
+predicate ext_primitive_type(string).
+index ext_primitive_type source("PrimitiveType.facts", 1).
+primitive_type(type(X)) :- ext_primitive_type(X).
+predicate ext_application_class(string).
+index ext_application_class source("ApplicationClass.facts", 1).
+application_class(type(X)) :- ext_application_class(X).
+predicate ext_component_type(string,string).
+index ext_component_type source("ComponentType.facts", 2).
+component_type(type(X),type(Y)) :- ext_component_type(X,Y).
+
+// **************************************************************************** 
+predicate super_class(type,type).
+index super_class array_map(0, 50000000, hash_set(10)).
+predicate super_interface(type,type).
+index super_interface array_map(0, 50000000, hash_set(10)).
+
+super_class(Sub,Super) :- direct_super_class(Sub,Super).
+super_class(Sub,Super) :- super_class(Sub,T), direct_super_class(T,Super).
+
+super_interface(Sub,Super) :- direct_super_interface(Sub,Super).
+super_interface(Sub,Super) :- super_interface(Sub,T), direct_super_interface(T,Super).
+super_interface(Sub,Super) :- direct_super_class(Sub,T), super_interface(T,Super).
+
+predicate method_implemented(type,string,string,method).
+index method_implemented array_map(3, 50000000, value()).
+index method_implemented hash_map([1,2], 50000000, hash_map([0], 5, value())) secondary.
+method_implemented(Type,Simple,Descr,Method) :-
+    method_signature(Sig,Type,Simple,Descr),
+    !method_modifier("abstract",Sig),
+    method_declaration(Sig,Method).
+
+// method_lookup(Type,Simple,Descr,Method)
+predicate method_lookup(type,string,string,method).
+index method_lookup array_map(0, 50000000, hash_map([1,2], 5, value())).
+method_lookup(Type,Simple,Descr,Method) :- 
+    method_implemented(Type,Simple,Descr,Method).
+method_lookup(Type,Simple,Descr,Method) :- 
+    direct_super_class(Type,Super),
+    method_lookup(Super,Simple,Descr,Method),
+    !method_implemented(Type,Simple,Descr,_).
+
+// reference_type(T)
+predicate reference_type(type).
+index reference_type array_map(0,50000000,boolean()).
+reference_type(T) :- class_type(T).
+reference_type(T) :- array_type(T).
+reference_type(T) :- interface_type(T).
+
+// castable(S,T) : Type S can be cast to type T
+predicate castable(type,type).
+index castable array_map(0,50000000,hash_set(500)).
+index castable array_map(1,50000000,value_list(500)) secondary.
+castable(S,S) :- class_type(S).
+castable(S,T) :- super_class(S,T).
+castable(S,T) :- class_type(S), super_interface(S,T).
+castable(S,type("java.lang.Object")) :- interface_type(S).
+castable(S,S) :- interface_type(S).
+castable(S,T) :- interface_type(S), super_interface(S,T).
+castable(S,type("java.lang.Object")) :- array_type(S).
+castable(S,T) :-
+    component_type(S,Comp),
+    component_type(T,Comp),
+    primitive_type(Comp).
+castable(S,T) :-
+    component_type(S,Sc),
+    component_type(T,Tc),
+    reference_type(Sc),
+    reference_type(Tc),
+    castable(Sc,Tc).
+castable(S,type("java.lang.Cloneable")) :- array_type(S).
+castable(S,type("java.io.Serializable")) :- array_type(S).
+
+predicate method_declaring_class(method,type).
+index method_declaring_class array_map(0,50000000,value()).
+method_declaring_class(M,T) :-
+    method_declaration(S,M), 
+    method_signature(S,T,Simple,Descr).
+    
+predicate class_initializer(type,method). 
+index class_initializer array_map(0,50000000,value()).
+class_initializer(T,M) :-
+    method_implemented(T,"<clinit>","void()",M).
+
+data invoke = invoke string.
+data heap_type = normal | throwable | reified | new_instance invoke type | class type.
+data heap = heap string type type heap_type.
+data variable = variable string.
+
+function get_type :: heap -> type.
+function get_declaring_type :: heap -> type.
+function get_heap_string :: heap -> string.
+get_type(heap(H,Type,DType,M)) = Type.
+get_declaring_type(heap(H,Type,DType,M)) = DType.
+get_heap_string(heap(H,Type,DType,M)) = H.
+
+predicate reified_class(type,string).
+index reified_class array_map(0,50000000,value()).
+index reified_class hash_map([1],50000000,value()) secondary.
+
+predicate heap_alloc_type(string,type).
+index heap_alloc_type array_map(0,100,value()).
+
+predicate string_constant(string).
+index string_constant hash_set(50000000).
+
+predicate var_declaring_method(variable,method).
+index var_declaring_method array_map(0,50000000,value()).
+predicate var_type(variable,type).
+index var_type array_map(0,50000000,value()).
+
+predicate assign_cast(variable,variable,type,method).
+index assign_cast array_map(0,50000000,hash_set(2)).
+predicate assign_local(variable,variable,method).
+index assign_local array_map(0,50000000,hash_set(2)).
+predicate assign_return(invoke,variable).
+index assign_return array_map(0,50000000,hash_set(4)).
+predicate assign_heap(string,variable,method).
+index assign_heap hash_map([0],4000000,hash_set(10)).
+index assign_heap hash_map([2],4000000,value_list(10)) secondary.
+
+// Base To InMethod
+predicate load_array_index(variable,variable,method).
+index load_array_index array_map(0,50000000,hash_set(2)).
+// Base Sig To InMethod
+predicate load_instance_field(variable,variable,field_sig,method).
+index load_instance_field array_map(0,50000000,hash_set(2)).
+// Sig To InMethod
+predicate load_static_field(variable,field_sig,method).
+index load_static_field array_map(1,50000000,hash_set(2)).
+index load_static_field array_map(2,50000000,value_list(2)) secondary.
+
+// From Base InMethod
+predicate store_array_index(variable,variable,method).
+index store_array_index array_map(0,50000000,hash_set(2)).
+index store_array_index array_map(1,50000000,value_list(2)) secondary.
+// From Base Sig InMethod
+predicate store_instance_field(variable,variable,field_sig,method).
+index store_instance_field array_map(0,50000000,hash_set(2)).
+index store_instance_field array_map(1,50000000,value_list(2)) secondary.
+
+// From Sig InMethod
+predicate store_static_field(variable,field_sig,method).
+index store_static_field array_map(0,50000000,hash_set(2)).
+index store_static_field array_map(1,50000000,value_list(2)) secondary.
+index store_static_field array_map(2,50000000,value_list(2)) secondary.
+
+predicate accessed_primitive_field(field_sig,method).
+index accessed_primitive_field array_map(1,50000000,hash_set(5)).
+
+predicate virtual_invoke_base(invoke,variable).
+index virtual_invoke_base array_map(0,50000000,value()).
+predicate virtual_invoke_signature(invoke,method_sig).
+index virtual_invoke_signature array_map(0,50000000,value()).
+predicate virtual_invoke_in_method(invoke,method).
+index virtual_invoke_in_method array_map(0,50000000,value()).
+
+predicate special_invoke_base(invoke,variable).
+index special_invoke_base array_map(0,50000000,value()).
+predicate special_invoke_signature(invoke,method_sig).
+index special_invoke_signature array_map(0,50000000,value()).
+predicate special_invoke_in_method(invoke,method).
+index special_invoke_in_method array_map(0,50000000,value()).
+
+predicate static_invoke_signature(invoke,method_sig).
+index static_invoke_signature array_map(0,50000000,value()).
+predicate static_invoke_in_method(invoke,method).
+index static_invoke_in_method array_map(0,50000000,value()).
+
+predicate actual_param(invoke,i32,variable).
+index actual_param array_map(0,50000000,hash_map([1],3,value())).
+index actual_param array_map(2,50000000,value_list(5)) secondary.
+predicate formal_param(method,i32,variable).
+index formal_param array_map(0,50000000,hash_map([1],3,value())).
+index formal_param array_map(2,50000000,value()) secondary.
+
+predicate this_variable(method,variable).
+index this_variable array_map(0,50000000,value()).
+predicate return_variable(method,variable).
+index return_variable array_map(1,50000000,value()).
+index return_variable array_map(0,50000000,value_list(3)) secondary.
+
+// **************************************************************************** 
+predicate variable(variable,method,type).
+index variable array_map(0,50000000,value()).
+variable(Var,Method,Type) :-
+    var_declaring_method(Var,Method),
+    var_type(Var,Type).
+
+predicate virtual_invoke(invoke,variable,method_sig,method).
+index virtual_invoke array_map(1,50000000,hash_set(3)).
+index virtual_invoke array_map(0,50000000,value()) secondary.
+virtual_invoke(Invoke,Base,Sig,InMethod) :-
+    virtual_invoke_base(Invoke,Base),
+    virtual_invoke_signature(Invoke,Sig),
+    virtual_invoke_in_method(Invoke,InMethod).
+
+predicate special_invoke(invoke,variable,method,method).
+index special_invoke array_map(1,50000000,hash_set(3)).
+special_invoke(Invoke,Base,Method,InMethod) :-
+    special_invoke_base(Invoke,Base),
+    special_invoke_signature(Invoke,Sig),
+    special_invoke_in_method(Invoke,InMethod),
+    method_declaration(Sig,Method).
+
+predicate static_invoke(invoke,method,method).
+index static_invoke array_map(2,50000000,hash_set(3)).
+static_invoke(Invoke,Method,InMethod) :-
+    static_invoke_signature(Invoke,Sig),
+    static_invoke_in_method(Invoke,InMethod),
+    method_declaration(Sig,Method).
+
+predicate main_class(string).
+index main_class source("MainClass.facts", 1).
+
+predicate implicit_reachable(method).
+index implicit_reachable hash_set(10).
+implicit_reachable(Method) :- 
+    main_class(Type),
+    method_signature(Sig,type(Type),"main","void(java.lang.String[])"),
+    method_declaration(Sig,Method).
+
+predicate invoke(invoke,method).
+index invoke array_map(0,5000000,value()).
+invoke(I,M) :- virtual_invoke_in_method(I,M).
+invoke(I,M) :- special_invoke_in_method(I,M).
+invoke(I,M) :- static_invoke_in_method(I,M).
+
+// predicate method_lookup_sig(method_sig,type,method).
+// method_lookup_sig(Sig,Type,Method) :-
+//     method_signature(Sig,Ts,Simple,Descr),
+//     castable(Type,Ts),
+//     method_lookup(Type,Simple,Descr,Method).
+
+// ****************************************************************************
+predicate ext_heap(string,string).
+index ext_heap source("HeapAllocation-Type.facts", 2).
+heap_alloc_type(X,type(Y)) :- ext_heap(X,Y).
+
+predicate ext_reified_class(string,string).
+index ext_reified_class source("ReifiedClass.facts", 2).
+reified_class(type(X),Y) 
+    :- ext_reified_class(X,Y).
+
+predicate ext_string_constant(string).
+index ext_string_constant source("StringConstant.facts", 1).
+string_constant(X) :- ext_string_constant(X).
+
+predicate ext_var_declaring_method(string,string).
+index ext_var_declaring_method source("Var-DeclaringMethod.facts", 2).
+var_declaring_method(variable(X),method(Y)) :- ext_var_declaring_method(X,Y).
+predicate ext_var_type(string,string).
+index ext_var_type source("Var-Type.facts", 2).
+var_type(variable(X),type(Y)) :- ext_var_type(X,Y).
+
+predicate ext_assign_cast(string,string,string,string).
+index ext_assign_cast source("AssignCast.facts", 4).
+assign_cast(variable(X),variable(Y),type(W),method(Z)) :- ext_assign_cast(W,X,Y,Z).
+predicate ext_assign_heap(string,string,string).
+index ext_assign_heap source("AssignHeapAllocation.facts", 3).
+assign_heap(X,variable(Y),method(Z)) :- 
+    ext_assign_heap(X,Y,Z), heap_alloc_type(X,T),
+    method_declaring_class(method(Z),DT).
+predicate ext_assign_local(string,string,string).
+index ext_assign_local source("AssignLocal.facts", 3).
+assign_local(variable(X),variable(Y),method(Z)) :- ext_assign_local(X,Y,Z).
+predicate ext_assign_return(string,string).
+index ext_assign_return source("AssignReturnValue.facts", 2).
+assign_return(invoke(X),variable(Y)) :- ext_assign_return(X,Y).
+
+predicate ext_load_array_index(string,string,string).
+index ext_load_array_index source("LoadArrayIndex.facts", 3).
+load_array_index(variable(X),variable(Y),method(Z)) :- ext_load_array_index(X,Y,Z).
+predicate ext_load_instance_field(string,string,string,string).
+index ext_load_instance_field source("LoadInstanceField.facts", 4).
+load_instance_field(variable(W),variable(Y),field_sig(X),method(Z)) :- ext_load_instance_field(W,X,Y,Z).
+predicate ext_load_static_field(string,string,string).
+index ext_load_static_field source("LoadStaticField.facts", 3).
+load_static_field(variable(Y),field_sig(X),method(Z)) :- ext_load_static_field(X,Y,Z).
+
+predicate ext_store_array_index(string,string,string).
+index ext_store_array_index source("StoreArrayIndex.facts", 3).
+store_array_index(variable(X),variable(Y),method(Z)) :- ext_store_array_index(X,Y,Z).
+predicate ext_store_instance_field(string,string,string,string).
+index ext_store_instance_field source("StoreInstanceField.facts", 4).
+store_instance_field(variable(W),variable(X),field_sig(Y),method(Z)) :- ext_store_instance_field(W,X,Y,Z).
+predicate ext_store_static_field(string,string,string).
+index ext_store_static_field source("StoreStaticField.facts", 3).
+store_static_field(variable(X),field_sig(Y),method(Z)) :- ext_store_static_field(X,Y,Z).
+
+predicate ext_load_primitive_field(string,string).
+index ext_load_primitive_field source("LoadPrimStaticField.facts", 2).
+accessed_primitive_field(field_sig(X),method(Y)) :- ext_load_primitive_field(X,Y).
+predicate ext_store_primitive_field(string,string).
+index ext_store_primitive_field source("StorePrimStaticField.facts", 2).
+accessed_primitive_field(field_sig(X),method(Y)) :- ext_store_primitive_field(X,Y).
+
+predicate ext_virtual_invoke_base(string,string).
+index ext_virtual_invoke_base source("VirtualMethodInvocation-Base.facts", 2).
+virtual_invoke_base(invoke(X),variable(Y)) :- ext_virtual_invoke_base(X,Y).
+predicate ext_virtual_invoke_signature(string,string).
+index ext_virtual_invoke_signature source("VirtualMethodInvocation-Signature.facts", 2).
+virtual_invoke_signature(invoke(X),method_sig(Y)) :- ext_virtual_invoke_signature(X,Y).
+predicate ext_virtual_invoke_in_method(string,string).
+index ext_virtual_invoke_in_method source("VirtualMethodInvocation-In.facts", 2).
+virtual_invoke_in_method(invoke(X),method(Y)) :- ext_virtual_invoke_in_method(X,Y).
+
+predicate ext_special_invoke_base(string,string).
+index ext_special_invoke_base source("SpecialMethodInvocation-Base.facts", 2).
+special_invoke_base(invoke(X),variable(Y)) :- ext_special_invoke_base(X,Y).
+predicate ext_special_invoke_signature(string,string).
+index ext_special_invoke_signature source("SpecialMethodInvocation-Signature.facts", 2).
+special_invoke_signature(invoke(X),method_sig(Y)) :- ext_special_invoke_signature(X,Y).
+predicate ext_special_invoke_in_method(string,string).
+index ext_special_invoke_in_method source("SpecialMethodInvocation-In.facts", 2).
+special_invoke_in_method(invoke(X),method(Y)) :- ext_special_invoke_in_method(X,Y).
+
+predicate ext_static_invoke_signature(string,string).
+index ext_static_invoke_signature source("StaticMethodInvocation-Signature.facts", 2).
+static_invoke_signature(invoke(X),method_sig(Y)) :- ext_static_invoke_signature(X,Y).
+predicate ext_static_invoke_in_method(string,string).
+index ext_static_invoke_in_method source("StaticMethodInvocation-In.facts", 2).
+static_invoke_in_method(invoke(X),method(Y)) :- ext_static_invoke_in_method(X,Y).
+
+predicate ext_actual_param(i32,string,string).
+index ext_actual_param source("ActualParam.facts", 3).
+actual_param(invoke(Y),X,variable(Z)) :- ext_actual_param(X,Y,Z).
+predicate ext_formal_param(i32,string,string).
+index ext_formal_param source("FormalParam.facts", 3).
+formal_param(method(Y),X,variable(Z)) :- ext_formal_param(X,Y,Z).
+
+predicate ext_this_variable(string,string).
+index ext_this_variable source("ThisVar.facts", 2).
+this_variable(method(X),variable(Y)) :- ext_this_variable(X,Y).
+predicate ext_return_variable(string,string).
+index ext_return_variable source("ReturnVar.facts", 2).
+return_variable(method(Y),variable(X)) :- ext_return_variable(X,Y).
+
+// ****************************************************************************
+// Reachable
+// ****************************************************************************
+
+implicit_reachable(method("<java.lang.System: void initializeSystemClass()>")).
+implicit_reachable(method("<java.lang.Thread: void exit()>")).
+implicit_reachable(method("<java.lang.ThreadGroup: void uncaughtException(java.lang.Thread,java.lang.Throwable)>")).
+implicit_reachable(method("<java.lang.ClassLoader: void <init>()>")).
+implicit_reachable(method("<java.lang.ClassLoader: java.lang.Class loadClassInternal(java.lang.String)>")).
+implicit_reachable(method("<java.lang.ClassLoader: void checkPackageAccess(java.lang.Class,java.security.ProtectionDomain)>")).
+implicit_reachable(method("<java.lang.ClassLoader: void addClass(java.lang.Class)>")).
+implicit_reachable(method("<java.lang.ClassLoader: long findNative(java.lang.ClassLoader,java.lang.String)>")).
+implicit_reachable(method("<java.security.PrivilegedActionException: void <init>(java.lang.Exception)>")).
+
+
+// ****************************************************************************
+// Heap Merge
+// ****************************************************************************
+predicate class_name_string_constant(heap,type).
+index class_name_string_constant array_map(0,50000000,value()).
+class_name_string_constant(heap(X,T,T,normal()),type(X)) 
+    :- assign_heap(X,Y,P), method_declaring_class(P,DT), heap_alloc_type(X,T),
+    string_constant(X), 
+    reference_type(type(X)).
+
+predicate heap_merge(string,heap).
+index heap_merge hash_map([0],50000000,value()).
+heap_merge(X,heap("<<string-constant>>",type("java.lang.String"),type("java.lang.String"),normal())) 
+    :- assign_heap(X,_,P), string_constant(X), !reference_type(type(X)).
+heap_merge(X,heap(TStr,T,T,throwable()))
+    :- assign_heap(X,_,P), method_declaring_class(P,DT),
+    heap_alloc_type(X,T), 
+    castable(T,type("java.lang.Throwable")),
+    ( T = type(TStr) ).
+
+predicate context_insensitive_heap(string).
+index context_insensitive_heap hash_set(500000).
+context_insensitive_heap(get_heap_string(X)) :- class_name_string_constant(X,_).
+context_insensitive_heap(X) :- 
+    assign_heap(X,_,P), heap_alloc_type(X,T), method_declaring_class(P,DT), 
+    component_type(T,Xc), 
+    primitive_type(Xc).
+
+predicate assign_heap_normal(heap,variable,method).
+index assign_heap_normal array_map(2,50000000,hash_set(10)).
+predicate assign_heap_special(heap,variable,method).
+index assign_heap_special array_map(2,50000000,hash_set(10)).
+
+assign_heap_normal(heap(X,T,DT,normal()),Y,P) :- 
+    assign_heap(X,Y,P), method_declaring_class(P,DT), heap_alloc_type(X,T), 
+    !heap_merge(X,_), !context_insensitive_heap(X), !reified_class(_,X).
+assign_heap_special(Merged,Y,P) :- 
+    assign_heap(X,Y,P), 
+    heap_merge(X,Merged).
+assign_heap_special(heap(X,T,T,normal()),Y,P) :- 
+    assign_heap(X,Y,P), heap_alloc_type(X,T), 
+    context_insensitive_heap(X).
+assign_heap_special(heap(X,T,T,class(XType)),Y,P) :- 
+    assign_heap(X,Y,P), heap_alloc_type(X,T), 
+    reified_class(XType,X).
+
+predicate intrinsic_heap(heap).
+index intrinsic_heap value().
+intrinsic_heap(heap("<intrinsic>",type("<intrinsic>"),type("<intrinsic>"),normal())).
+
+predicate entry_heap(heap).
+index entry_heap value().
+entry_heap(heap("<entry>",type("<intrinsic>"),type("<intrinsic>"),normal())).
+
+predicate intrinsic_invoke(invoke).
+index intrinsic_invoke value().
+intrinsic_invoke(invoke("<intrinsic>")).
+
+predicate entry_invoke(invoke).
+index entry_invoke value().
+entry_invoke(invoke("<entry>")).
+
+predicate intrinsic_type(type).
+index intrinsic_type value().
+intrinsic_type(type("<intrinsic>")).
+
+predicate entry_type(type).
+index entry_type value().
+entry_type(type("<type>")).
+
+predicate reflective_invoke(invoke).
+index reflective_invoke array_map(0,50000000,boolean()).
+
+
+// ****************************************************************************
+// Native Method
+// ****************************************************************************
+
+// <java.lang.Object: java.lang.Object clone()>
+assign_local(variable("java.lang.Object.clone/@this"),variable("java.lang.Object.clone/@native-return"),method("<java.lang.Object: java.lang.Object clone()>")).
+
+// <java.lang.System: void setIn0(java.io.InputStream)>
+store_static_field(variable("java.lang.System.setIn0/@param0"),field_sig("<java.lang.System: java.io.InputStream in>"),method("<java.lang.System: void setIn0(java.io.InputStream)>")).
+
+// <java.lang.System: void setOut0(java.io.PrintStream)>
+store_static_field(variable("java.lang.System.setOut0/@param0"),field_sig("<java.lang.System: java.io.PrintStream out>"),method("<java.lang.System: void setOut0(java.io.PrintStream)>")).
+
+// <java.lang.System: void setErr0(java.io.PrintStream)>
+store_static_field(variable("java.lang.System.setErr0/@param0"),field_sig("<java.lang.System: java.io.PrintStream err>"),method("<java.lang.System: void setErr0(java.io.PrintStream)>")).
+
+// <java.lang.System: void arraycopy(java.lang.Object,int,java.lang.Object,int,int)>
+var_type(variable("System.arraycopy/@native-tmp"),type("java.lang.Object")).
+var_declaring_method(variable("System.arraycopy/@native-tmp"),method("<java.lang.System: void arraycopy(java.lang.Object,int,java.lang.Object,int,int)>")).
+
+load_array_index(variable("java.lang.System.arraycopy/@param0"),variable("System.arraycopy/@native-tmp"),method("<java.lang.System: void arraycopy(java.lang.Object,int,java.lang.Object,int,int)>")).
+store_array_index(variable("System.arraycopy/@native-tmp"),variable("java.lang.System.arraycopy/@param2"),method("<java.lang.System: void arraycopy(java.lang.Object,int,java.lang.Object,int,int)>")).
+
+// <java.io.FileSystem: java.io.FileSystem getFileSystem()>
+assign_heap_normal(
+    heap("java.io.FileSystem.getFileSystem/new java.io.UnixFileSystem",
+        type("java.io.UnixFileSystem"),
+        type("java.io.FileSystem"),
+        normal()),
+    variable("java.io.FileSystem.getFileSystem/@native-return"),method("<java.io.FileSystem: java.io.FileSystem getFileSystem()>")).
+
+var_type(variable("<java.io.UnixFileSystem: java.lang.String[] list(java.io.File)>/@native-tmp"),type("java.lang.String")).
+var_declaring_method(variable("<java.io.UnixFileSystem: java.lang.String[] list(java.io.File)>/@native-tmp"),method("<java.io.UnixFileSystem: java.lang.String[] list(java.io.File)>")).
+assign_heap_normal(
+    heap("java.io.UnixFileSystem.list/new java.lang.String",
+        type("java.lang.String"),
+        type("java.io.UnixFileSystem"),
+        normal()),
+    variable("<java.io.UnixFileSystem: java.lang.String[] list(java.io.File)>/@native-tmp"),method("<java.io.UnixFileSystem: java.lang.String[] list(java.io.File)>")).
+
+assign_heap_normal(
+    heap("java.io.UnixFileSystem.list/new java.lang.String[]",
+        type("java.lang.String[]"),
+        type("java.io.UnixFileSystem"),
+        normal()),
+    variable("java.io.UnixFileSystem.list/@native-return"),method("<java.io.UnixFileSystem: java.lang.String[] list(java.io.File)>")).
+store_array_index(variable("<java.io.UnixFileSystem: java.lang.String[] list(java.io.File)>/@native-tmp"),variable("java.io.UnixFileSystem.list/@native-return"),method("<java.io.UnixFileSystem: java.lang.String[] list(java.io.File)>")).
+
+
+// java.lang.ref.Finalizer
+virtual_invoke_base(invoke("<java.lang.ref.Finalizer: void invokeFinalizeMethod(java.lang.Object)>/native <java.lang.Object: void finalize()>"),variable("java.lang.ref.Finalizer.invokeFinalizeMethod/@param0")).
+virtual_invoke_in_method(invoke("<java.lang.ref.Finalizer: void invokeFinalizeMethod(java.lang.Object)>/native <java.lang.Object: void finalize()>"),method("<java.lang.ref.Finalizer: void invokeFinalizeMethod(java.lang.Object)>")).
+virtual_invoke_signature(invoke("<java.lang.ref.Finalizer: void invokeFinalizeMethod(java.lang.Object)>/native <java.lang.Object: void finalize()>"),method_sig("<java.lang.Object: void finalize()>")).
+
+virtual_invoke_base(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction)>/native <java.security.PrivilegedAction: java.lang.Object run()>"),variable("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction)>/@param0")).
+virtual_invoke_in_method(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction)>/native <java.security.PrivilegedAction: java.lang.Object run()>"),method("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction)>")).
+virtual_invoke_signature(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction)>/native <java.security.PrivilegedAction: java.lang.Object run()>"),method_sig("<java.security.PrivilegedAction: java.lang.Object run()>")).
+assign_return(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction)>/native <java.security.PrivilegedAction: java.lang.Object run()>"),variable("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction)>/@native-return")).
+
+virtual_invoke_base(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction,java.security.AccessControlContext)>/native <java.security.PrivilegedAction: java.lang.Object run()>"),variable("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction,java.security.AccessControlContext)>/@param0")).
+virtual_invoke_in_method(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction,java.security.AccessControlContext)>/native <java.security.PrivilegedAction: java.lang.Object run()>"),method("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction,java.security.AccessControlContext)>")).
+virtual_invoke_signature(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction,java.security.AccessControlContext)>/native <java.security.PrivilegedAction: java.lang.Object run()>"),method_sig("<java.security.PrivilegedAction: java.lang.Object run()>")).
+assign_return(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction,java.security.AccessControlContext)>/native <java.security.PrivilegedAction: java.lang.Object run()>"),variable("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedAction,java.security.AccessControlContext)>/@native-return")).
+
+virtual_invoke_base(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction)>/native <java.security.PrivilegedExceptionAction: java.lang.Object run()>"),variable("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction)>/@param0")).
+virtual_invoke_in_method(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction)>/native <java.security.PrivilegedExceptionAction: java.lang.Object run()>"),method("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction)>")).
+virtual_invoke_signature(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction)>/native <java.security.PrivilegedExceptionAction: java.lang.Object run()>"),method_sig("<java.security.PrivilegedExceptionAction: java.lang.Object run()>")).
+assign_return(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction)>/native <java.security.PrivilegedExceptionAction: java.lang.Object run()>"),variable("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction)>/@native-return")).
+
+virtual_invoke_base(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction,java.security.AccessControlContext)>/native <java.security.PrivilegedExceptionAction: java.lang.Object run()>"),variable("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction,java.security.AccessControlContext)>/@param0")).
+virtual_invoke_in_method(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction,java.security.AccessControlContext)>/native <java.security.PrivilegedExceptionAction: java.lang.Object run()>"),method("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction,java.security.AccessControlContext)>")).
+virtual_invoke_signature(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction,java.security.AccessControlContext)>/native <java.security.PrivilegedExceptionAction: java.lang.Object run()>"),method_sig("<java.security.PrivilegedExceptionAction: java.lang.Object run()>")).
+assign_return(invoke("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction,java.security.AccessControlContext)>/native <java.security.PrivilegedExceptionAction: java.lang.Object run()>"),variable("<java.security.AccessController: java.lang.Object doPrivileged(java.security.PrivilegedExceptionAction,java.security.AccessControlContext)>/@native-return")).
+
+// java.lang.ref.Reference
+// This doesn't seem to do anything
+store_static_field(variable("<java.lang.ref.Reference: void <init>(java.lang.Object,java.lang.ref.ReferenceQueue)>/@this"),field_sig("<java.lang.ref.Reference: java.lang.ref.Reference pending>"),method("<java.lang.ref.Reference: void <init>(java.lang.Object,java.lang.ref.ReferenceQueue)>")).

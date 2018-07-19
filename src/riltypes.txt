@@ -1,0 +1,94 @@
+data location = location{ 
+	first_line :: i32,
+	first_column :: i32,
+	last_line :: i32,
+	last_column :: i32 }.
+
+data statement
+    = variable_decl{ loc :: location, names :: [string] }
+	| label{ loc :: location, name :: string }
+    | if_{ loc :: location, true_branch :: statement, false_branch :: statement }
+    | expression{ loc :: location, expr :: expression }
+    | block{ loc :: location, stmts :: [statement] }
+	| while_{ loc :: location, body :: statement }
+	| do_{ loc :: location, body :: statement }
+	| return_{ loc :: location, expr :: expression }
+    | empty
+    .
+
+data expression
+    = identifier{ loc :: location, name :: string }
+    | integer{ loc :: location, value :: i32 }
+    | allocation{ loc :: location }
+    | dereference{ loc :: location, inner :: expression }
+    | address_of{ loc :: location, inner :: expression }
+    | assignment{ loc :: location, lhs :: expression, rhs :: expression }
+	| invoke{ loc :: location, target :: expression, args :: [expression] }
+	| pointer_offset{ loc :: location, ptr :: expression, offset :: i32 }
+    .
+
+data function = function{ 
+	loc :: location,
+	name :: string,
+	args :: [def],
+	body :: [statement],
+	addr :: def }.
+
+data def 
+	= alloc_a{
+		func :: string,
+		block :: i32,
+		variable :: string }
+	| alloc{
+		func :: string,
+		block :: i32,
+		line_no :: i32,
+		name :: string }
+	| load{
+		func :: string,
+		block :: i32,
+		line_no :: i32,
+		pointer :: def }
+	| getelementptr{
+		base :: def,
+		offset :: def }
+	| invoke{
+		func :: string,
+		block :: i32,
+		line_no :: i32,
+		target :: def,
+		args :: [def] }
+	| argument{
+		func :: string,
+		name :: string }
+	// Pointer typed non-analyzable defs
+	| other{
+		func :: string,
+		block :: i32,
+		name :: string }
+	// Global variables (functions, etc.)
+	| global{
+		name :: string }
+	// integer constants
+	| integer{ value :: i32 }
+	// Non pointer-typed other defs (etc.)
+	| non_pointer{
+		name :: string }
+	.
+
+data store = store{
+	func :: string,
+	block :: i32,
+	line_no :: i32,
+	pointer :: def,
+	value :: def }.
+
+data global_initializer = global_initializer{
+	global :: def,
+	global_offset :: i32,
+	value :: def,
+	value_offset :: i32 }.
+		
+data edge = edge{ func :: string, from :: i32, to :: i32 }.
+
+data def_attributes = def_attributes{ def :: def, attr :: string }.

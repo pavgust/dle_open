@@ -1,0 +1,15 @@
+function show :: T -> void.
+
+function show_uint32 overrides show :: i32 -> void.
+show_uint32(X) = builtin_show_i32(X).
+
+function show_string overrides show :: string -> void.
+show_string(X) = builtin_show_string(X).
+
+function show_list overrides show :: list T -> void.
+function show_tail :: list T -> void.
+show_list(nil()) = show("[]").
+show_list(X:Xt) = show("["); show(X); show_tail(Xt).
+show_tail(nil()) = show("]").
+show_tail(X:Xt) = show(","); show(X); show_tail(Xt).
+

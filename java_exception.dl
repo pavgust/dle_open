@@ -1,0 +1,154 @@
+data throw = throw string.
+data handler = handler string.
+
+predicate ext_exception_handler_method(string,string).
+index ext_exception_handler_method source("ExceptionHandler-Method.facts",2).
+
+predicate exception_handler_method(handler,method).
+index exception_handler_method array_map(0,10000000,value()).
+index exception_handler_method array_map(1,10000000,value_list(5)) secondary.
+exception_handler_method(handler(H),method(M)) :- ext_exception_handler_method(H,M).
+
+predicate ext_exception_handler_type(string,string).
+index ext_exception_handler_type source("ExceptionHandler-Type.facts",2).
+
+predicate exception_handler_type(handler,type).
+index exception_handler_type array_map(0,10000000,value()).
+exception_handler_type(handler(H),type(T)) :- ext_exception_handler_type(H,T).
+
+predicate ext_exception_handler_previous(string,string).
+index ext_exception_handler_previous source("ExceptionHandler-Previous.facts",2).
+
+predicate exception_handler_previous(handler,handler).
+index exception_handler_previous array_map(0,10000000,value()).
+exception_handler_previous(handler(H),handler(P)) :- ext_exception_handler_previous(H,P).
+
+predicate ext_exception_handler_formal(string,string).
+index ext_exception_handler_formal source("ExceptionHandler-FormalParam.facts",2).
+
+predicate exception_handler_formal(handler,variable).
+index exception_handler_formal array_map(0,10000000,value()).
+exception_handler_formal(handler(H),variable(F)) :- ext_exception_handler_formal(H,F).
+
+predicate ext_exception_handler_begin(string,i32).
+index ext_exception_handler_begin source("ExceptionHandler-Begin.facts",2).
+
+predicate exception_handler_begin(handler,i32).
+index exception_handler_begin array_map(0,10000000,value()).
+exception_handler_begin(handler(H),I) :- ext_exception_handler_begin(H,I).
+
+predicate ext_exception_handler_end(string,i32).
+index ext_exception_handler_end source("ExceptionHandler-End.facts",2).
+
+predicate exception_handler_end(handler,i32).
+index exception_handler_end array_map(0,10000000,value()).
+exception_handler_end(handler(H),I) :- ext_exception_handler_end(H,I).
+
+predicate exception_handler_before(handler,handler).
+index exception_handler_before array_map(0,1000000,hash_set(3)).
+exception_handler_before(H,P) :- exception_handler_previous(H,P).
+exception_handler_before(H,P) :- 
+    exception_handler_before(H,M), exception_handler_previous(M,P).
+
+predicate ext_instruction_index(string,i32).
+index ext_instruction_index source("Instruction-Index.facts",2).
+
+predicate instruction_index(string,i32).
+index instruction_index hash_map([0],1000000000,value()).
+instruction_index(H,I) :- ext_instruction_index(H,I).
+
+predicate invoke_index(invoke,i32).
+index invoke_index array_map(0,1000000,value()).
+invoke_index(invoke(I),N) :- invoke(invoke(I),_), instruction_index(I,N).
+
+predicate ext_throw(string,string).
+index ext_throw source("Throw.facts",2).
+
+predicate throw(throw,variable).
+index throw array_map(0,1000000,value()).
+index throw array_map(1,1000000,value_list(3)) secondary.
+throw(throw(T),variable(V)) :- ext_throw(T,V).
+
+predicate ext_throw_method(string,string).
+index ext_throw_method source("Throw-Method.facts",2).
+
+predicate throw_method(throw,method).
+index throw_method array_map(0,10000000,value()).
+throw_method(throw(T),method(M)) :- ext_throw_method(T,M).
+
+predicate possible_exception_handler(type,method,i32,handler).
+index possible_exception_handler#bbbf hash_map([0,1,2],1000,hash_set(10)).
+index possible_exception_handler#bbbf hash_set(100) demand.
+
+predicate throw_index(throw,i32).
+index throw_index array_map(0,1000000,value()).
+throw_index(throw(T),N) :- throw(throw(T),_), instruction_index(T,N).
+
+predicate all_throw_index(method,i32).
+index all_throw_index hash_set(10).
+all_throw_index(M,N) :- invoke_index(I,N), invoke(I,M).
+all_throw_index(M,N) :- throw_index(T,N), throw_method(T,M).
+
+possible_exception_handler#bbbf(T,M,I,H) :-
+    exception_handler_method(H,M),
+    exception_handler_begin(H,Begin),
+    exception_handler_end(H,End),
+    exception_handler_type(H,T),
+    ( Begin <= I && I < End ).
+
+possible_exception_handler#bbbf(Sub,M,I,H) :-
+    exception_handler_method(H,M),
+    exception_handler_begin(H,Begin),
+    exception_handler_end(H,End),
+    exception_handler_type(H,Super),
+    ( Begin <= I && I < End ),
+    castable(Sub,Super).
+
+predicate impossible_exception_handler(type,method,i32,handler).
+index impossible_exception_handler#bbbf hash_map([0,1,2],10000000,hash_set(10)).
+index impossible_exception_handler#bbbf hash_set(100) demand.
+
+impossible_exception_handler#bbbf(T,M,I,H) :-
+    possible_exception_handler#bbbf(T,M,I,H),
+    exception_handler_before(H,P),
+    possible_exception_handler#bbbf(T,M,I,P).
+
+predicate exception_handler_lookup(type,method,i32,handler).
+index exception_handler_lookup#bbbf hash_map([0,1,2],10000000,value()).
+index exception_handler_lookup#bbbf hash_set(100) demand.
+
+exception_handler_lookup#bbbf(T,M,I,H) :-
+    possible_exception_handler#bbbf(T,M,I,H),
+    !impossible_exception_handler#bbbf(T,M,I,H).
+
+throw_pts(M,H,A) :-
+    throw(T,V),
+    throw_method(T,M),
+    throw_index(T,I),
+    pts(V,H,A),
+    !exception_handler_lookup#bbbf(get_type(H),M,I,_).
+
+pts(X,H,A) :-
+    throw(T,V),
+    throw_method(T,M),
+    throw_index(T,I),
+    pts(V,H,A),
+    exception_handler_lookup#bbbf(get_type(H),M,I,Handler),
+    exception_handler_formal(Handler,X).
+
+throw_pts(M,H,A) :-
+    invoke(Inv,M),
+    invoke_index(Inv,I),
+    throw_pts(E,H,B),
+    call(Inv,E,C),
+    !exception_handler_lookup#bbbf(get_type(H),M,I,_),
+    compose_mr#bbf(B,C,A).
+
+pts(X,H,A) :-
+    invoke(Inv,M),
+    invoke_index(Inv,I),
+    throw_pts(E,H,B),
+    call(Inv,E,C),
+    exception_handler_lookup#bbbf(get_type(H),M,I,Handler),
+    exception_handler_formal(Handler,X),    
+    compose_mr#bbf(B,C,A).

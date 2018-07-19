@@ -1,0 +1,35 @@
+function length :: [T] -> i32.
+length(X:Xt) = 1 + length(Xt).
+length(nil()) = 0.
+
+function empty :: [T] -> i32.
+empty([]) = 1.
+empty(X:Xt) = 0.
+
+function head :: [T] -> T.
+head(X:Xt) = X.
+
+function rest :: [T] -> [T].
+rest(X:Xt) = Xt.
+
+function reverse_acc :: [T],[T] -> [T].
+reverse_acc([],A) = A.
+reverse_acc(X:Xt,A) = reverse_acc(Xt,X:A).
+
+function reverse :: [T] -> [T].
+reverse(X) = reverse_acc(X,[]).
+
+function last :: [T] -> T.
+last(X:[]) = X.
+last(X:Xt) = last(Xt).
+
+function pop_back :: [T] -> [T].
+pop_back(X:[]) = [].
+pop_back(X:Xt) = X:pop_back(Xt).
+
+function concat :: [T],[T] -> [T].
+concat([],Yt) = Yt.
+concat(X:Xt,Yt) = X:concat(Xt,Yt).
+
+function join_counter :: i32,i32 -> i32.
+join_counter(X,Y) = X+Y.

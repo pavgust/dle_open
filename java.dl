@@ -1,0 +1,258 @@
+include("java_input.dl").
+
+predicate pts(variable,heap,context_hm) inline.
+predicate throw_pts(method,heap,context_hm) inline.
+predicate hpts(heap,heap,field_sig,context_hh) inline.
+predicate hptsa(heap,heap,context_hh) inline.
+predicate hptss(heap,field_sig,context_h) inline.
+predicate hload(heap,variable,field_sig,context_hm) inline.
+predicate hloada(heap,variable,context_hm) inline.
+predicate call(invoke,method,context_mm) inline.
+predicate reachable(method,context_m) inline.
+
+predicate record(method,context_hm) inline.
+predicate record_ci(method,context_hm) inline.
+predicate record_from(context_hm,context_hm) inline.
+predicate record_from_ci(context_hm,context_hm) inline.
+predicate compose(context_hh,context_hm,context_hm) inline.
+predicate compose_r(context_hm,context_hm,context_hh) inline.
+predicate compose_m(context_hm,context_mm,context_hm) inline.
+predicate compose_mr(context_hm,context_mm,context_hm) inline.
+predicate compose_w(method,context_h,context_hm) inline.
+predicate merge(heap,invoke,context_hm,context_mm) inline.
+predicate merge_s(method,invoke,context_mm) inline.
+predicate drop_r(context_mm,context_m) inline.
+predicate drop_m(context_hm,context_h) inline.
+predicate blank(context_m) inline.
+
+predicate reachable_ci(method).
+index reachable_ci array_map(0, 1000, boolean()).
+predicate initialized(type).
+index initialized array_map(0, 1000, boolean()).
+
+include("java_reflection.dl").
+include("java_exception.dl").
+
+pts(Y,X,A) :- 
+    assign_heap_normal(X,Y,P), record#bf(P,A).
+pts(Y,X,A) :- 
+    assign_heap_special(X,Y,P), record_ci#bf(P,A).
+
+pts(Y,X,A) :- 
+    pts(Z,X,A), assign_local(Z,Y,_).
+pts(Y,X,A) :- 
+    pts(Z,X,A), assign_cast(Z,Y,Ty,_), 
+    castable(get_type(X),Ty).
+
+pts(Y,X,A) :-  
+    hpts(W,X,F,B),
+    hload(W,Y,F,C),
+    compose#bbf(B,C,A).
+pts(Y,X,A) :- 
+    hptsa(W,X,B),
+    hloada(W,Y,C),
+    compose#bbf(B,C,A).
+pts(Y,X,A) :- 
+    hptss(X,F,B),
+    load_static_field(Y,F,P),
+    compose_w#bbf(P,B,A).
+    
+pts(Y,X,A) :-
+    pts(Z,X,B), 
+    virtual_invoke(I,Z,S,P), !reflective_invoke(I),
+    method_signature(S,Ts,Simple,Descr), method_lookup(get_type(X),Simple,Descr,Q), 
+    this_variable(Q,Y),
+    merge#bbbf(X,I,B,C), compose_m#bbf(B,C,A).
+pts(Y,X,A) :- 
+    pts(Z,X,B), 
+    special_invoke(I,Z,Q,P), !reflective_invoke(I),
+    this_variable(Q,Y),
+    merge#bbbf(X,I,B,C), compose_m#bbf(B,C,A).
+
+pts(Y,X,A) :- 
+    pts(Z,X,B), 
+    actual_param(I,O,Z), !reflective_invoke(I),
+    call(I,P,C), 
+    formal_param(P,O,Y),
+    compose_m#bbf(B,C,A).
+pts(Y,X,A) :- 
+    pts(Z,X,B), 
+    return_variable(P,Z), 
+    call(I,P,C), assign_return(I,Y),
+    compose_mr#bbf(B,C,A).
+    
+hpts(Y,X,F,A) :-
+    pts(W,X,B), store_instance_field(W,Z,F,_), 
+    pts(Z,Y,C),
+    compose_r#bbf(B,C,A).
+hptsa(Y,X,A) :- 
+    pts(W,X,B), store_array_index(W,Z,_), 
+    pts(Z,Y,C),
+    component_type(get_type(Y),TyComp),
+    castable(get_type(X),TyComp),    
+    compose_r#bbf(B,C,A).
+hptss(X,F,A) :-  
+    pts(Z,X,B), 
+    store_static_field(Z,F,_),
+    drop_m#bf(B,A).
+
+hload(X,Y,F,A) :-
+    pts(W,X,A), load_instance_field(W,Y,F,_).
+hloada(X,Y,A) :- 
+    pts(W,X,A), load_array_index(W,Y,_).
+    
+call(I,Q,A) :- 
+    static_invoke(I,Q,P),
+    merge_s#bbf(P,I,A).
+call(I,Q,A) :- 
+    pts(Z,X,B), 
+    virtual_invoke(I,Z,S,P), !reflective_invoke(I),
+    method_signature(S,Ts,Simple,Descr), method_lookup(get_type(X),Simple,Descr,Q), 
+    merge#bbbf(X,I,B,A).
+call(I,Q,A) :- 
+    pts(Z,X,B), 
+    special_invoke(I,Z,Q,P), !reflective_invoke(I),
+    merge#bbbf(X,I,B,A).
+
+reachable(P,C) :- implicit_reachable(P), blank(C).
+reachable(P,C) :- call(I,P,B), drop_r#bf(B,C).
+reachable(P,C) :- initialized(T), class_initializer(T,P), blank(C).
+
+reachable_ci(P) :- reachable(P,C).
+
+initialized(T) :- reachable_ci(P), method_declaring_class(P,T).
+initialized(T) :- initialized(S), direct_super_class(S,T).
+initialized(T) :- reachable_ci(P), assign_heap_normal(X,Y,P), ( T = get_type(X) ).
+initialized(T) :- reachable_ci(P), assign_heap_special(X,Y,P), ( T = get_type(X) ).
+initialized(T) :- reachable_ci(P), static_invoke(I,Q,P), method_declaring_class(Q,T).
+initialized(T) :- 
+    reachable_ci(P), accessed_primitive_field(F,P), 
+    field_signature(F,T,Simple,Descr).
+initialized(T) :- 
+    reachable_ci(P), store_static_field(X,F,P), 
+    field_signature(F,T,Simple,Descr).
+initialized(T) :- 
+    reachable_ci(P), load_static_field(X,F,P), 
+    field_signature(F,T,Simple,Descr).
+
+eval_before( "reachable_ci" ) :- 
+    ( printf( "Read input in " ); print_timer(); printf( "\n" ); 
+        reset_timer(); 1 ).
+eval_after( "reachable_ci" ) :- 
+    ( printf( "Computed points-to information in " ); print_timer(); 
+        printf( "\n" ); reset_timer(); 1 ).
+
+data p = p string.
+predicate counter(p,i32).
+index counter array_map( 0, 100, join( join_counter ) ).
+
+predicate pts_ci(variable,heap).
+index pts_ci hash_set(1000).
+//index pts_ci sink( "pts.txt" ).
+pts_ci(Y,X) :- pts(Y,X,A).
+
+predicate hpts_ci(heap,heap,field_sig).
+index hpts_ci hash_set(1000).
+//index hpts_ci sink( "hpts.txt" ).
+hpts_ci(Y,X,F) :- hpts(Y,X,F,A).
+
+predicate hptsa_ci(heap,heap).
+index hptsa_ci hash_set(1000).
+hptsa_ci(Y,X) :- hptsa(Y,X,A).
+
+predicate hload_ci(heap,variable,field_sig).
+index hload_ci hash_set(1000).
+hload_ci(X,Y,F) :- hload(X,Y,F,A).
+
+predicate hloada_ci(heap,variable).
+index hloada_ci hash_set(1000).
+hloada_ci(X,Y) :- hloada(X,Y,A).
+
+predicate call_ci(invoke,method).
+index call_ci array_map( 0, 1000, hash_set(1000) ).
+//index call_ci sink( "call.txt" ).
+call_ci(I,Q) :- call(I,Q,A).
+
+counter(p("pts"),1) :- pts(Y,X,A).
+counter(p("pts_ci"),1) :- pts_ci(Y,X).
+counter(p("hpts"),1) :- hpts(X,Y,F,A).
+counter(p("hpts_ci"),1) :- hpts_ci(X,Y,F).
+counter(p("hptsa"),1) :- hptsa(X,Y,A).
+counter(p("hptsa_ci"),1) :- hptsa_ci(X,Y).
+counter(p("call"),1) :- call(I,Q,A).
+counter(p("call_ci"),1) :- call_ci(I,Q).
+counter(p("reachable"),1) :- reachable(P,A).
+counter(p("reachable_ci"),1) :- reachable_ci(P).
+counter(p("initialized"),1) :- initialized(T).
+
+counter(p("hpts_total"),1) :- hpts(X,Y,F,A).
+counter(p("hpts_total"),1) :- hptsa(X,Y,A).
+counter(p("hpts_total"),1) :- hptss(X,F,A).
+counter(p("total"),1) :- pts(Y,X,A).
+counter(p("total"),1) :- hpts(X,Y,F,A).
+counter(p("total"),1) :- hptsa(X,Y,A).
+counter(p("total"),1) :- hptss(X,F,A).
+counter(p("total"),1) :- call(I,Q,A).
+
+counter(p("reach_heap"),1) :- assign_heap*(_,_,P), reachable_ci(P).
+counter(p("reach_var"),1) :- var_declaring_method*(_,P), reachable_ci(P).
+counter(p("reach_load"),1) :- load_array_index*(_,_,P), reachable_ci(P).
+counter(p("reach_load"),1) :- load_instance_field*(_,_,_,P), reachable_ci(P).
+counter(p("reach_load"),1) :- load_static_field*(_,_,P), reachable_ci(P).
+counter(p("reach_store"),1) :- store_array_index*(_,_,P), reachable_ci(P).
+counter(p("reach_store"),1) :- store_instance_field*(_,_,_,P), reachable_ci(P).
+counter(p("reach_store"),1) :- store_static_field*(_,_,P), reachable_ci(P).
+
+predicate poly_vcall(invoke).
+index poly_vcall hash_set( 1000 ).
+poly_vcall(I) :- call_ci(I,Q), call_ci(I,R), ( Q != R ).
+counter(p("vcallsite"),1) :- poly_vcall(I).
+counter(p("reach_vcall"),1) :- virtual_invoke*(_,_,_,P), reachable_ci(P).
+
+eval_after("counter") :-
+    counter(p("reach_var"),N1), counter(p("reach_heap"),N2),
+    counter(p("reach_load"),N3), counter(p("reach_store"),N4),
+    ( printf( "Reachable var: %d\nReachable heap: %d\nReachable load: %d\nReachable store: %d\n\n", N1, N2, N3, N4 ); 1 ).
+
+eval_after("counter") :- 
+    counter(p("pts"),N), counter(p("pts_ci"),O), 
+    ( printf( "Points-to: %d/%d\n", N, O ); 1 ).
+eval_after("counter") :- 
+    counter(p("hpts"),N), counter(p("hpts_ci"),O), 
+    ( printf( "Heap points-to: %d/%d\n", N, O ); 1 ).
+eval_after("counter") :- 
+    counter(p("hptsa"),N), counter(p("hptsa_ci"),O),
+    ( printf( "Array points-to: %d/%d\n", N, O ); 1 ).
+eval_after("counter") :- 
+    counter(p("call"),N), counter(p("call_ci"),O),
+    ( printf( "Call edge: %d/%d\n", N, O ); 1 ).
+eval_after("counter") :- 
+    counter(p("reachable"),N), counter(p("reachable_ci"),O), 
+    ( printf( "Reachable: %d/%d\n", N, O ); 1 ).
+eval_after("counter") :- 
+    counter(p("initialized"),N), 
+    ( printf( "Initialized: %d\n", N ); 1 ).
+eval_after("counter") :- 
+    counter(p("vcallsite"),N1), 
+    counter(p("reach_vcall"),N2),
+    ( printf( "Poly call-sites: %d/%d\n", N1, N2 ); 1 ).
+
+// predicate compose_rr(context_hm,context_hm,context_mm) inline.
+// compose_rr#bbf(context_hm(H1,M1,M2),context_hm(H1,M3,M4),context_mm(M1,M2,M3,M4)).
+
+// predicate iflow(variable,variable,context_mm).
+// index iflow hash_set( 1000 ).
+// iflow(W,Y,P) :-
+// store_instance_field*(W,Z,F,_),
+// load_instance_field(L,Y,F,_),
+// pts(Z,A,D), pts(L,A,E), compose_rr#bbf(D,E,P).
+
+// predicate iflow_ci(variable,variable).
+// index iflow_ci hash_set( 1000 ).
+// iflow_ci(W,Y) :- iflow(W,Y,_).
+
+// eval_after("counter") :- 
+//     counter(p("pts"),A), counter(p("hpts_total"),B),
+//     counter(p("call"),C), counter(p("total"),D),
+//     ( printf( "%d\n%d\n%d\n%d\n", A, B, C, D ); 1 ).
+    

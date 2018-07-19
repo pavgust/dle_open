@@ -1,0 +1,74 @@
+data context_hm = context_hm heap heap heap.
+data context_hh = context_hh heap heap.
+data context_mm = context_mm heap heap heap heap.
+data context_m = context_m heap heap.
+data context_h = context_h heap.
+
+include( "java.dl" ).
+
+record#bf(P,context_hm(E1,E1,E2)) :-: reachable(P,context_m(E1,E2)).
+
+record_ci#bf(P,context_hm(H,E1,E2)) :-: reachable(P,context_m(E1,E2)), intrinsic_heap(H).
+
+record_from#bf(context_hm(H1,E1,E2),context_hm(E1,E1,E2)).
+
+record_from_ci#bf(context_hm(H1,E1,E2),context_hm(H,E1,E2)) :-: intrinsic_heap(H).
+
+compose#bbf(context_hh(H1,H2),context_hm(H2,M1,M2),context_hm(H1,M1,M2)).
+
+compose_r#bbf(context_hm(H1,M1,M2),context_hm(H2,M1,M2),context_hh(H1,H2)).
+
+compose_m#bbf(context_hm(H1,R1,R2),context_mm(R1,R2,E1,E2),context_hm(H1,E1,E2)).
+
+compose_mr#bbf(context_hm(H1,E1,E2),context_mm(R1,R2,E1,E2),context_hm(H1,R1,R2)).
+
+compose_w#bbf(P,context_h(H1),context_hm(H1,W1,W2)) :-: reachable(P,context_m(W1,W2)).
+
+merge#bbbf(H,I,context_hm(H1,M1,M2),context_mm(M1,M2,H,H1)).
+
+merge_s#bbf(P,I,context_mm(M1,M2,M1,M2)) :-: reachable(P,context_m(M1,M2)).
+
+drop_r#bf(context_mm(R1,R2,E1,E2),context_m(E1,E2)).
+
+drop_m#bf(context_hm(H1,M1,M2),context_h(H1)).
+
+blank(context_m(H,H)) :-: entry_heap(H).
+
+predicate pts_c(variable,heap,heap,heap,heap).
+index pts_c hash_map([0],10000,hash_map([1],1,hash_map([2],1,hash_set(100)))).
+index pts_c hash_map([3],10000,hash_map([4],1,hash_set(100))) secondary.
+pts(Y,X,context_hm(X1,Y1,Y2)) :-: pts_c(Y,Y1,Y2,X,X1).
+
+predicate throw_pts_c(method,heap,heap,heap,heap).
+index throw_pts_c hash_map([0],10000,hash_map([1],1,hash_map([2],1,hash_set(100)))).
+throw_pts(Y,X,context_hm(X1,Y1,Y2)) :-: throw_pts_c(Y,Y1,Y2,X,X1).
+
+predicate hpts_c(heap,heap,field_sig,heap,heap).
+index hpts_c hash_map([0],10000,hash_map([2],1,hash_map([1],1,hash_set(100)))).
+hpts(Y,X,F,context_hh(X1,Y1)) :-: hpts_c(Y,Y1,F,X,X1).
+
+predicate hptsa_c(heap,heap,heap,heap).
+index hptsa_c hash_map([0],10000,hash_map([1],1,hash_set(100))).
+hptsa(Y,X,context_hh(X1,Y1)) :-: hptsa_c(Y,Y1,X,X1).
+
+predicate hptss_c(field_sig,heap,heap).
+index hptss_c array_map(0, 10000, hash_set(100)).
+hptss(X,F,context_h(X1)) :-: hptss_c(F,X,X1).
+
+predicate hload_c(heap,heap,field_sig,variable,heap,heap).
+index hload_c hash_map([0],10000,hash_map([2],1,hash_map([1],1,hash_set(100)))).
+hload(X,Y,F,context_hm(X1,Y1,Y2)) :-: hload_c(X,X1,F,Y,Y1,Y2).
+
+predicate hloada_c(heap,heap,variable,heap,heap).
+index hloada_c hash_map([0],10000,hash_map([1],1,hash_set(100))).
+hloada(X,Y,context_hm(X1,Y1,Y2)) :-: hloada_c(X,X1,Y,Y1,Y2).
+
+predicate call_c(invoke,heap,heap,method,heap,heap).
+index call_c hash_map([0],10000,hash_map([1],1,hash_map([2],1,hash_set(100)))).
+index call_c hash_map([3],10000,hash_map([4],1,hash_map([5],1,hash_set(100)))) secondary.
+call(I,Q,context_mm(R1,R2,E1,E2)) :-: call_c(I,R1,R2,Q,E1,E2).
+
+predicate reachable_c(method,heap,heap).
+index reachable_c array_map(0, 10000, hash_set(100)).
+reachable(Q,context_m(R1,R2)) :-: reachable_c(Q,R1,R2).
+

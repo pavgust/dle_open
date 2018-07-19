@@ -1,0 +1,5 @@
+#/bin/bash
+if [ ! -f CMakeCache.txt ]; then exit 1; fi
+rm -Rf *
+cmake .. -DBOOST_ROOT=$HOME/code/local -DADDRESS_MODEL="-m32" "$@"
+
